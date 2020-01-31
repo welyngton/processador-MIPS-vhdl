@@ -1,0 +1,97 @@
+Modificações para a implementação da instrução LRW:
+
+ // Adição da instrução no enum de instruções
+ Linha 33:    type inst_type is (ADDU, SUBU, AAND, OOR, XXOR, NNOR, LW, LRW, PUSH, POP, SW, ORI, invalid_instruction);
+
+ // Habilitação do flag instR que indica se a instrução é do tipo R
+ Linha 174:   instR <= '1' when uins.i=ADDU or uins.i=SUBU or uins.i=AAND or uins.i=OOR or uins.i=XXOR or uins.i=NNOR or uins.i=LRW or uins.i=PUSH or uins.i=POP else '0';
+
+ // Mux da saida da Memoria de dados seleciona dados da memoria;
+ Linha 233:   reg_dest <=  data when uins.i=LW or uins.i=LRW or uins.i=POP else result;
+
+ // Formato discretizado da instrução, mostrando os campos "opcode", "shamt" e "funct"
+ Linha 267:   LRW when ir(31 downto 26)="000000" and ir(10 downto 0)="00000101011" else
+
+ // Chip Enable da memoria de dados
+ Linha 279:   uins.ce <= '1' when i=SW or i=LW or i=LRW or i=PUSH or i=POP else '0';
+
+
+
+Modificações para a implementação da instrução PUSH:
+
+ // Adição da instrução no enum de instruções
+ Linha 33:    type inst_type is (ADDU, SUBU, AAND, OOR, XXOR, NNOR, LW, LRW, PUSH, POP, SW, ORI, invalid_instruction);
+ 
+ // Habilitação de operação de subtração na ULA para a instrução PUSH
+ Linha 140:   op1 - op2  when  op_alu=SUBU or op_alu=PUSH else
+ 
+ // Habilitação do flag instR que indica se a instrução é do tipo R
+ Linha 174:   instR <= '1' when uins.i=ADDU or uins.i=SUBU or uins.i=AAND or uins.i=OOR or uins.i=XXOR or uins.i=NNOR or uins.i=LRW or uins.i=PUSH or uins.i=POP else '0';
+ 
+ // Adição de mais uma entrada no mux de seleção da entrada B da ULA -> "4" para a instrução PUSH e POP
+ Linha 221:   op2 <= x"00000004" when uins.i=PUSH or uins.i=POP else R2 when instR='1' and not (uins.i=PUSH or uins.i=POP) else ext32;
+ 
+ // Formato discretizado da instrução, mostrando os campos "opcode", "shamt" e "funct" 
+ Linha 243:   PUSH   when ir(31 downto 26)="000000" and ir(10 downto 0)="00000101000" else
+ 
+ // Chip Enable da memoria de dados
+ Linha 279:   uins.ce <= '1' when i=SW or i=LW or i=LRW or i=PUSH or i=POP else '0';
+ 
+ // Habilitação de escrita namemoria para a instrução PUSH
+ Linha 281:   uins.rw <= '0' when i=SW or i=PUSH else '1';
+ 
+
+ 
+Modificações para a implementação da instrução POP:
+
+ // Adição da instrução no enum de instruções
+ Linha 33:    type inst_type is (ADDU, SUBU, AAND, OOR, XXOR, NNOR, LW, LRW, PUSH, POP, SW, ORI, invalid_instruction);
+ 
+ // Declaração de um mais um tipo para o tipo microinstruction 
+ Linha 41:    wreg_2: std_logic;
+ 
+ // Declaração de um novo sinal no Banco deregistradores
+ Linha 98:    signal wen, RF : reg32 ;
+ 
+ // Mux interno ao Banco de Registradores que seleciona a entrada que ira escrever no Registrador indicado
+ Linha 105:   RF <= RD_2 when(adRD_2=i and wreg_2='1') else RD;
+ 
+ // Interligação de sinais e entradas no banco de registradores
+ Linha 107:   rx: entity work.reg32_ce port map (ck=>ck, rst=>rst, ce=>wen(i), D=>RF, Q=>reg(i));
+ 
+ // Declaração de novos sinais presentes no datapath para suprir a nova instrução POP
+ Linha 169:   signal incpc, ent_pc, pc_mais_offset, pc, result, R1, R2, ext32, op2, reg_dest, reg_dest_2 : reg32;
+ 
+ // Declaração de novos sinais presentes no datapath para suprir a nova instrução POP
+ Linha 170:   signal adD, adD_2: std_logic_vector(4 downto 0);
+ 
+ // Habilitação do flag instR que indica se a instrução é do tipo R
+ Linha 174:   instR <= '1' when uins.i=ADDU or uins.i=SUBU or uins.i=AAND or uins.i=OOR or uins.i=XXOR or uins.i=NNOR or uins.i=LRW or uins.i=PUSH or uins.i=POP else '0';
+ 
+ // Mux para indicar quem irá escrever na segunda entrada do Banco de Registradores
+ Linha 203:   adD_2 <= instruction(15 downto 11) when uins.i=POP else (others=>'Z');
+ 
+ // Interligação dos sinais, já com as novas entradas
+ Linha 205:   REGS: entity work.reg_bank port map (ck=>ck, rst=>rst, wreg=>uins.wreg, wreg_2=>uins.wreg_2, AdRs=>instruction(25 downto 21), AdRt=>instruction(20 downto 16), adRD=>adD, adRD_2=>adD_2, RD=>reg_dest, RD_2=>reg_dest_2, R1=>R1, R2=>R2);
+ 
+ // Adição de mais uma entrada no mux de seleção da entrada B da ULA -> "4" para a instrução PUSH e POP
+ Linha 221:   op2 <= x"00000004" when uins.i=PUSH or uins.i=POP else R2 when instR='1' and not (uins.i=PUSH or uins.i=POP) else ext32;
+ 
+ // Inserção de um mux na entrada de endereço na memoria de dados para a instrução POP
+ Linha 229:   d_address <= R1 when uins.i=POP else result;
+ 
+ // Mux da saida da Memoria de dados seleciona dados da memoria;
+ Linha 233:   reg_dest <=  data when uins.i=LW or uins.i=LRW or uins.i=POP else result;
+ 
+ // Envia o resultado da Operação lógica e aritimética da ULA para a segunda entrada do Banco de registradores
+ Linha 235:   reg_dest_2 <= result;
+ 
+ // Formato discretizado da instrução, mostrando os campos "opcode", "shamt" e "funct" 
+ Linha 269:   POP when ir(31 downto 26)="000000" and ir(10 downto 0)="00000101010" else
+ 
+ // Chip Enable da memoria de dados
+ Linha 279:   uins.ce  <= '1' when i=SW or i=LW or i=LRW or i=PUSH or i=POP else '0';
+ 
+ // Habilita escrita na segunda entrada do Banco de registradores 
+ Linha 285:   uins.wreg_2 <= '1' when i=POP else '0';
+ 
